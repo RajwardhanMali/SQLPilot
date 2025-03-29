@@ -1,0 +1,11 @@
+streamlit==1.43.0
+langchain==0.1.15
+langchain-community==0.0.35  # Updated to meet langchain's requirement
+langchain-core==0.1.45
+huggingface-hub==0.22.2
+requests==2.31.0
+typing-extensions==4.11.0
+pydantic==2.7.0
+trino==0.326.0
+pyspark==3.5.1
+python-dotenv==1.0.1
