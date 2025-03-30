@@ -1,0 +1,166 @@
+{
+    "ddl_statements": [
+        "CREATE TABLE IF NOT EXISTS dim_users (\n  user_id INTEGER,\n  username VARCHAR(50),\n  email VARCHAR(100),\n  registration_date DATE,\n  last_login TIMESTAMP,\n  status VARCHAR(20)\n)",
+        "CREATE TABLE IF NOT EXISTS dim_date (\n  date_id INTEGER,\n  date DATE,\n  day_of_week VARCHAR(10),\n  month VARCHAR(10),\n  year INTEGER\n)",
+        "CREATE TABLE IF NOT EXISTS fact_user_activity (\n  activity_id INTEGER,\n  user_id INTEGER,\n  date_id INTEGER,\n  login_time TIMESTAMP,\n  logout_time TIMESTAMP,\n  activity_type VARCHAR(50)\n)"
+    ],
+    "schema": {
+        "mermaid_code": "erDiagram\nclassDef dimension ,stroke:#ff7f0e,stroke-width:2px;\nclassDef fact ,stroke:#1f77b4,stroke-width:2px;\n\ndim_users {\n    INT user_id PK\n    VARCHAR(50) username\n    VARCHAR(100) email\n    DATE registration_date\n    TIMESTAMP last_login\n    VARCHAR(20) status\n}\nclass dim_users dimension\n\ndim_date {\n    INT date_id PK\n    DATE date\n    VARCHAR(10) day_of_week\n    VARCHAR(10) month\n    INT year\n}\nclass dim_date dimension\n\nfact_user_activity {\n    INT activity_id PK\n    INT user_id FK\n    INT date_id FK\n    TIMESTAMP login_time\n    TIMESTAMP logout_time\n    VARCHAR(50) activity_type\n}\nclass fact_user_activity fact\n\ndim_users ||--o{ fact_user_activity : performs\ndim_date ||--o{ fact_user_activity : on",
+        "tables": [
+            {
+                "columns": [
+                    {
+                        "dataType": "INT",
+                        "description": "Primary key for user activity",
+                        "foreignKey": false,
+                        "name": "activity_id",
+                        "primaryKey": true,
+                        "references": null
+                    },
+                    {
+                        "dataType": "INT",
+                        "description": "Foreign key referencing dim_users",
+                        "foreignKey": true,
+                        "name": "user_id",
+                        "primaryKey": false,
+                        "references": "dim_users"
+                    },
+                    {
+                        "dataType": "INT",
+                        "description": "Foreign key referencing dim_date",
+                        "foreignKey": true,
+                        "name": "date_id",
+                        "primaryKey": false,
+                        "references": "dim_date"
+                    },
+                    {
+                        "dataType": "TIMESTAMP",
+                        "description": "Timestamp of user login",
+                        "foreignKey": false,
+                        "name": "login_time",
+                        "primaryKey": false,
+                        "references": null
+                    },
+                    {
+                        "dataType": "TIMESTAMP",
+                        "description": "Timestamp of user logout",
+                        "foreignKey": false,
+                        "name": "logout_time",
+                        "primaryKey": false,
+                        "references": null
+                    },
+                    {
+                        "dataType": "VARCHAR(50)",
+                        "description": "Type of user activity (e.g., login, post, comment)",
+                        "foreignKey": false,
+                        "name": "activity_type",
+                        "primaryKey": false,
+                        "references": null
+                    }
+                ],
+                "name": "fact_user_activity",
+                "type": "fact"
+            },
+            {
+                "columns": [
+                    {
+                        "dataType": "INT",
+                        "description": "Primary key for users",
+                        "foreignKey": false,
+                        "name": "user_id",
+                        "primaryKey": true,
+                        "references": null
+                    },
+                    {
+                        "dataType": "VARCHAR(50)",
+                        "description": "User's username",
+                        "foreignKey": false,
+                        "name": "username",
+                        "primaryKey": false,
+                        "references": null
+                    },
+                    {
+                        "dataType": "VARCHAR(100)",
+                        "description": "User's email address",
+                        "foreignKey": false,
+                        "name": "email",
+                        "primaryKey": false,
+                        "references": null
+                    },
+                    {
+                        "dataType": "DATE",
+                        "description": "Date of user registration",
+                        "foreignKey": false,
+                        "name": "registration_date",
+                        "primaryKey": false,
+                        "references": null
+                    },
+                    {
+                        "dataType": "TIMESTAMP",
+                        "description": "Timestamp of last login",
+                        "foreignKey": false,
+                        "name": "last_login",
+                        "primaryKey": false,
+                        "references": null
+                    },
+                    {
+                        "dataType": "VARCHAR(20)",
+                        "description": "User's current status (e.g., active, inactive)",
+                        "foreignKey": false,
+                        "name": "status",
+                        "primaryKey": false,
+                        "references": null
+                    }
+                ],
+                "name": "dim_users",
+                "type": "dimension"
+            },
+            {
+                "columns": [
+                    {
+                        "dataType": "INT",
+                        "description": "Primary key for dates",
+                        "foreignKey": false,
+                        "name": "date_id",
+                        "primaryKey": true,
+                        "references": null
+                    },
+                    {
+                        "dataType": "DATE",
+                        "description": "Date",
+                        "foreignKey": false,
+                        "name": "date",
+                        "primaryKey": false,
+                        "references": null
+                    },
+                    {
+                        "dataType": "VARCHAR(10)",
+                        "description": "Day of the week (e.g., Monday)",
+                        "foreignKey": false,
+                        "name": "day_of_week",
+                        "primaryKey": false,
+                        "references": null
+                    },
+                    {
+                        "dataType": "VARCHAR(10)",
+                        "description": "Month (e.g., January)",
+                        "foreignKey": false,
+                        "name": "month",
+                        "primaryKey": false,
+                        "references": null
+                    },
+                    {
+                        "dataType": "INT",
+                        "description": "Year",
+                        "foreignKey": false,
+                        "name": "year",
+                        "primaryKey": false,
+                        "references": null
+                    }
+                ],
+                "name": "dim_date",
+                "type": "dimension"
+            }
+        ]
+    }
+}
