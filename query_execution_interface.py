@@ -36,15 +36,7 @@ class QueryExecutionInterface:
         .config("spark.sql.catalogImplementation", "in-memory") \
         .getOrCreate()
 
-        
-        # Add any custom configurations
-        # if configs:
-        #     for key, value in configs.items():
-        #         builder = builder.config(key, value)
-        
-        # Create the session with proper error handling
         try:
-            # self.spark_session = builder.getOrCreate()
             # Test the session with a simple query
             self.spark_session.sql("SELECT 1").collect()
             return self.spark_session
@@ -72,10 +64,11 @@ class QueryExecutionInterface:
         # Start execution timer
         start_time = time.time()
         cursor.execute(f"USE {catalog}.{schema}")
+        
         # Execute the query
         cursor.execute(query)
-
-        # Get column names and fetch results once
+        
+        # Get column names and fetch results
         rows, columns, results = [], [], []
         if cursor.description:
             columns = [desc[0] for desc in cursor.description]
@@ -87,24 +80,32 @@ class QueryExecutionInterface:
         # Fetch latest query ID
         cursor.execute("SELECT query_id FROM system.runtime.queries ORDER BY created DESC LIMIT 1")
         query_id = cursor.fetchone()[0] if cursor.rowcount else None
-
+        print(f"Latest query ID: {query_id}")
         cpu_time, peak_memory, elapsed_time = None, None, None
         if query_id:
             try:
-                # Fetch CPU time and memory usage from system.runtime.tasks
+                # Fetch CPU time and memory usage from system.runtime.queries
                 cursor.execute(f"""
-                    SELECT sum(cpu_time_millis) / 1000.0, 
-                        max(memory_bytes),
-                        max(elapsed_time_millis) / 1000.0
-                    FROM system.runtime.tasks 
+                   SELECT analysis_time_ms /1000
+                    FROM system.runtime.queries
                     WHERE query_id = '{query_id}'
                 """)
-                metrics = cursor.fetchone()
-                if metrics:
-                    cpu_time, peak_memory, elapsed_time = metrics
+
+                cpu_time = cursor.fetchone()[0]
+
+                cursor.execute(f"""
+                   SELECT output_bytes
+                    FROM system.runtime.tasks
+                    WHERE query_id = '{query_id}'
+                """)
+
+                peak_memory = cursor.fetchone()[0]
+                
             except Exception as e:
                 print(f"Error fetching query metrics: {e}")
 
+        cursor.close()
+        
         return {
             "columns": columns,
             "rows": rows,

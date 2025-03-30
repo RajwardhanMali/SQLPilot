@@ -37,6 +37,7 @@ class NLUModule:
         
         if not api_key:
             raise ValueError("GOOGLE_API_KEY environment variable not set")
+        
         mermaid_code = """
         erDiagram
         classDef usersStyle fill:#000,stroke:#1f77b4,stroke-width:2px;
@@ -151,6 +152,13 @@ class NLUModule:
         self.sql_prompt = ChatPromptTemplate.from_messages([
             ("system", """You are an expert SQL assistant. Convert natural language queries into optimized SQL.
             Use the provided tools when necessary and format the output as specified.
+            Try to use joins and subqueries where appropriate.
+            Try to use window functions and common table expressions where appropriate.
+            Try to use aggregate functions and grouping where appropriate.
+            Try to use filtering and sorting where appropriate.
+            Try to use case statements and conditional logic where appropriate.
+            Try to implement everything dialect specific features. 
+            Try to  Give Optimized queries
             Dialect: {dialect}
             Schema: {schema}
             {format_instructions}"""),
@@ -229,9 +237,9 @@ if __name__ == "__main__":
     #     'CREATE TABLE IF NOT EXISTS dim_date (\n  date_id INTEGER,\n  date DATE,\n  day_of_week VARCHAR(10),\n  month VARCHAR(10),\n  year INTEGER\n)',
     #     'CREATE TABLE IF NOT EXISTS fact_user_activity (\n  activity_id INTEGER,\n  user_id INTEGER,\n  date_id INTEGER,\n  login_time TIMESTAMP,\n  logout_time TIMESTAMP,\n  activity_type VARCHAR(50)\n)'
     #     """
-    # translated_sql = nlu.translate_to_sql("show me total activities of users on wednesday", schema, "Trino", [])
-    # print("sql:",translated_sql.get("sql"))
-    # print("explaination:",translated_sql.get("explanation"))
+    translated_sql = nlu.translate_to_sql("show me total activities of users on wednesday", schema, "Trino", [])
+    print("sql:",translated_sql.get("sql"))
+    print("explaination:",translated_sql.get("explanation"))
 
 
    
