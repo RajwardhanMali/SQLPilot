@@ -34,21 +34,6 @@ SQL-Pilot is an AI-powered SQL assistant designed to simplify database managemen
 - **Database**: MongoDB.  
 - **Containerization**: Docker.  
 
-## Evaluation Criteria  
-
-1. **Accuracy**  
-     - SQL statements should be relevant, syntactically, and semantically correct.  
-
-2. **SQL Translation Accuracy**  
-     - Proper use of SQL constructs, including aggregations, joins, filters, limits, and ordering.  
-
-3. **Performance**  
-     - DDL statements should follow best practices for performance optimization, such as partitioning.  
-     - Translated SQL queries should be efficient for execution.  
-
-4. **User Interface**  
-     - The UI should be responsive, simple, and user-friendly.  
-
 ## Getting Started  
 
 ### Prerequisites  
