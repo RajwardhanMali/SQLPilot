@@ -7,9 +7,15 @@ from query_execution_interface import QueryExecutionInterface
 from feedback_loop_system import FeedbackLoopSystem
 import json
 import os
+import pandas as pd
+from langchain_google_genai import ChatGoogleGenerativeAI
+import config 
+from langchain_experimental.agents import create_spark_dataframe_agent
+from talk_to_data import talk_to_data
 
 app = Flask(__name__)
 CORS(app)
+
 def initialize_components():
     nlu = NLUModule()
     schema_engine = SchemaDesignEngine(nlu)
@@ -27,6 +33,77 @@ def initialize_components():
 
 components = initialize_components()
 
+UPLOAD_FOLDER = "uploads"
+os.makedirs(UPLOAD_FOLDER, exist_ok=True)
+
+def get_df(file_path):
+    """Reads the uploaded file and returns a Spark DataFrame using the existing session."""
+    extension = os.path.splitext(file_path)[1].lower()
+
+    if extension == ".csv":
+        return config.spark.read.csv(file_path, header=True, inferSchema=True)
+    elif extension == ".parquet":
+        return config.spark.read.parquet(file_path)
+    elif extension == ".orc":
+        return config.spark.read.orc(file_path)
+    elif extension == ".json":
+        df = pd.read_json(file_path)
+        temp_csv = file_path.replace(".json", ".csv")  # Convert JSON to CSV
+        df.to_csv(temp_csv, index=False)
+        return config.spark.read.csv(temp_csv, header=True, inferSchema=True)
+    else:
+        return None
+
+# ✅ API 1: Upload file and save it
+@app.route("/upload_file", methods=["POST"])
+def upload_file():
+    """Handles file upload and saves it to the server."""
+    if "file" not in request.files:
+        return jsonify({"error": "No file provided"}), 400
+
+    file = request.files["file"]
+    file_path = os.path.join(UPLOAD_FOLDER, file.filename)
+    
+    # Save file
+    file.save(file_path)
+
+    return jsonify({"message": "File uploaded successfully", "file_name": file.filename}), 200
+
+# ✅ API 2: Execute query on the saved file
+@app.route("/talk_to_data", methods=["POST"])
+def talk_data():
+    """Executes query on uploaded file if it exists."""
+
+    file_name = request.json.get("file_name")
+    query = request.json.get("query")
+
+    if not file_name or not query:
+        return jsonify({"error": "Both 'file_name' and 'query' are required"}), 400
+
+    file_path = os.path.join(UPLOAD_FOLDER, file_name)
+    print("File path:")
+    print(file_path)
+    # if not os.path.exists(file_path):
+    #     return jsonify({"error": "File not found"}), 404
+
+    # # Load DataFrame using the persistent Spark session
+    # df = get_df(file_path)
+    # if df is None:
+    #     return jsonify({"error": "Unsupported file format"}), 400
+
+    # # Initialize LLM (Google Gemini)
+    # llm = ChatGoogleGenerativeAI(model="models/gemini-2.0-flash", temperature=0)
+
+    # # ✅ Use the global Spark session to create the agent
+    # agent = create_spark_dataframe_agent(llm=llm, df=df, verbose=True, allow_dangerous_code=True, max_iterations=5)
+
+    # Process query inside the same Spark session
+    try:
+        response = talk_to_data(file_path, query, config.spark)
+        return jsonify({"result": response})
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+    
 @app.route("/generate_schema", methods=["POST"])
 def generate_schema():
     data = request.json
@@ -49,17 +126,6 @@ def initialize_trino():
     result = components["query_executor"].initialize_trino(host, port, user, catalog, schema)
     return jsonify(result)
 
-@app.route("/execute_ddl", methods=["POST"])
-def execute_ddl():
-    data = request.json
-    ddl_statement = data.get("ddl", "")
-    dialect = data.get("dialect", "trino").lower().replace(" ", "_")
-    try:
-        result = components["query_executor"].execute_query(ddl_statement, engine=dialect)
-        return jsonify({"success": True, "message": "DDL executed successfully"})
-    except Exception as e:
-        return jsonify({"success": False, "error": str(e)})
-
 @app.route("/translate_sql", methods=["POST"])
 def translate_sql():
     data = request.json
@@ -69,14 +135,14 @@ def translate_sql():
     translated_sql = components["sql_engine"].translate_to_sql(natural_query, schema_info, dialect=dialect)
     return jsonify({"sql": translated_sql.get("sql"), "explaination": translated_sql.get("explanation")})
 
-@app.route("/complete_sql", methods=["POST"])
-def complete_sql():
-    data = request.json
-    partial_query = data.get("partial_query", "")
-    schema_info = data.get("schema_info", "")
-    dialect = data.get("dialect", "Trino")
-    completed_query = components["sql_engine"].complete_sql(partial_query, schema_info, dialect=dialect)
-    return jsonify({"completed_sql": completed_query})
+# @app.route("/complete_sql", methods=["POST"])
+# def complete_sql():
+#     data = request.json
+#     partial_query = data.get("partial_query", "")
+#     schema_info = data.get("schema_info", "")
+#     dialect = data.get("dialect", "Trino")
+#     completed_query = components["sql_engine"].complete_sql(partial_query, schema_info, dialect=dialect)
+#     return jsonify({"completed_sql": completed_query})
 
 @app.route("/execute_query", methods=["POST"])
 def execute_query():
@@ -105,21 +171,6 @@ def execute_query():
 #     "error": "TrinoUserError(type=USER_ERROR, name=SYNTAX_ERROR, message=\"line 1:8: mismatched input 'tab'. Expecting: 'CATALOG', 'FUNCTION', 'MATERIALIZED', 'OR', 'ROLE', 'SCHEMA', 'TABLE', 'VIEW'\", query_id=20250329_150238_00300_iiwxq)",
 #     "success": false
 # }
-
-@app.route("/generate_dml", methods=["POST"])
-def generate_dml():
-    data = request.json
-    operation = data.get("operation", "")
-    table_name = data.get("table_name", "")
-    schema_info = data.get("schema_info", "")
-    dialect = data.get("dialect", "Trino")
-    dml_statement = components["sql_engine"].generate_dml(
-        operation=operation,
-        table_name=table_name,
-        schema=schema_info,
-        dialect=dialect
-    )
-    return jsonify({"dml": dml_statement})
 
 @app.route("/submit_feedback", methods=["POST"])
 def submit_feedback():
