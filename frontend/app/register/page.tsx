@@ -12,6 +12,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import ThemeToggle from "@/components/theme-toggle";
+import { toast } from "sonner";
 
 export default function RegisterPage() {
   const [isLoading, setIsLoading] = useState(false);
@@ -76,9 +77,10 @@ export default function RegisterPage() {
         });
 
         if (res.ok) {
-          router.push("/dashboard"); // Redirect after successful registration
+          toast.success("Registered Successfully");
+          router.push("/login"); // Redirect after successful registration
         } else {
-          console.error("Registration failed");
+          toast.error("Registration failed");
         }
       } catch (error) {
         console.error("Error:", error);

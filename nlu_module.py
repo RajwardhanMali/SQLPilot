@@ -230,13 +230,6 @@ class NLUModule:
 if __name__ == "__main__":
     nlu = NLUModule()
     schema = nlu.design_schema("Design a database schema for a social media platform that includes users, posts, comments, and tags.")
-    print(schema)
-    print(schema.get("mermaid_code"))
-    # schema = """
-    #     'CREATE TABLE IF NOT EXISTS dim_users (\n  user_id INTEGER,\n  username VARCHAR(50),\n  email VARCHAR(100),\n  registration_date DATE,\n  last_login TIMESTAMP,\n  status VARCHAR(20)\n)',
-    #     'CREATE TABLE IF NOT EXISTS dim_date (\n  date_id INTEGER,\n  date DATE,\n  day_of_week VARCHAR(10),\n  month VARCHAR(10),\n  year INTEGER\n)',
-    #     'CREATE TABLE IF NOT EXISTS fact_user_activity (\n  activity_id INTEGER,\n  user_id INTEGER,\n  date_id INTEGER,\n  login_time TIMESTAMP,\n  logout_time TIMESTAMP,\n  activity_type VARCHAR(50)\n)'
-    #     """
     translated_sql = nlu.translate_to_sql("show me total activities of users on wednesday", schema, "Trino", [])
     print("sql:",translated_sql.get("sql"))
     print("explaination:",translated_sql.get("explanation"))

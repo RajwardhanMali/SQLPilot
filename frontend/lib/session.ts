@@ -14,22 +14,24 @@ export const authOptions: NextAuthOptions = {
     CredentialsProvider({
       name: "Credentials",
       credentials: {
-        email: { label: "Email", type: "text" },
+        email: { label: "Email", type: "email" },
         password: { label: "Password", type: "password" },
       },
       async authorize(credentials) {
-        const user = await User.findOne({ email: credentials?.email });
-        if (
-          user &&
-          bcrypt.compareSync(credentials?.password!, user.password!)
-        ) {
+        if (!credentials?.email || !credentials?.password) {
+          throw new Error("Email and password are required");
+        }
+
+        const user = await User.findOne({ email: credentials.email });
+        if (user && bcrypt.compareSync(credentials.password, user.password!)) {
           return {
             id: user._id.toString(),
             email: user.email,
             name: user.name,
           };
         }
-        return null;
+
+        throw new Error("Invalid email or password");
       },
     }),
   ],

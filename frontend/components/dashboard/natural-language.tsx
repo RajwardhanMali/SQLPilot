@@ -10,6 +10,7 @@ import useDashboardStore from "@/store/dashboard";
 import MonacoEditor from "@/components/shared/monaco-editor";
 import { saveQuery } from "@/actions/query";
 import { useParams } from "next/navigation";
+import { toast } from "sonner";
 
 export default function NaturalLanguage() {
   const [prompt, setPrompt] = useState("");
@@ -48,12 +49,14 @@ export default function NaturalLanguage() {
       const data = await response.json();
       if (data.sql) {
         setGeneratedSQL(data.sql);
+        toast.success(data.success);
         setQueryExplanation(data.explaination);
       } else {
         setError("Failed to generate SQL. Please try again.");
+        toast.error(data.error?.message);
       }
-    } catch (err) {
-      console.error("Error generating SQL:", err);
+    } catch (err: any) {
+      toast.error(err.message);
       setError("Error generating SQL. Please try again.");
     } finally {
       setIsLoading(false);
@@ -62,8 +65,8 @@ export default function NaturalLanguage() {
 
   const handleExecuteSQL = async () => {
     if (!generatedSQL) return;
-
     setIsExecuting(true);
+    setActiveTab("results");
     setExecutionResult(null);
     setError(null);
 

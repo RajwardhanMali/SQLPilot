@@ -1,6 +1,7 @@
 "use server";
 import SchemaModel from "@/models/Schema"; // Renamed to avoid conflict
 import { Types } from "mongoose"; // Import Types for ObjectId conversion
+import { revalidatePath } from "next/cache";
 
 export interface SchemaType {
   _id?: string;
@@ -33,6 +34,7 @@ export const saveSchema = async (schema: SchemaType) => {
   } else {
     const newSchema = new SchemaModel(schema);
     await newSchema.save();
+    revalidatePath("/dashboard");
   }
 };
 

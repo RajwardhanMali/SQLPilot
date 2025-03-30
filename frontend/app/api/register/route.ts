@@ -20,22 +20,9 @@ export async function POST(req: Request) {
     const hashedPassword = await bcrypt.hash(password, 10);
     const newUser = new User({ email, password: hashedPassword, name, image });
     await newUser.save();
-
-    // Generate a session token
-    const token = sign(
-      { id: newUser._id, email: newUser.email, image },
-      process.env.JWT_SECRET!,
-      {
-        expiresIn: "7d",
-      }
-    );
-
-    const response = NextResponse.json({
+    return NextResponse.json({
       message: "User registered successfully",
     });
-    response.cookies.set("authToken", token, { httpOnly: true, path: "/" });
-
-    return response;
   } catch (error) {
     console.error(error);
     return NextResponse.json(

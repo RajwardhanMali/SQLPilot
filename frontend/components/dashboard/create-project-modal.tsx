@@ -11,21 +11,22 @@ import {
 } from "@/components/ui/dialog";
 import useDashboardStore from "@/store/dashboard";
 import { createProject } from "@/actions/projects";
+import { toast } from "sonner";
 
 export default function CreateProjectModal({ open, setOpen }: any) {
   const router = useRouter();
-  const { setProject } = useDashboardStore();
   const [isLoading, setIsLoading] = useState(false);
 
   const handleCreateProject = async (title: string, description: string) => {
     setIsLoading(true);
     try {
       const project = await createProject({ title, description });
-      setProject(project);
       setOpen(false);
-      router.push(`/dashboard/${project._id}`);
-    } catch (error) {
+      toast.success("Project Created Successfully");
+      router.push(`/dashboard/${project}`);
+    } catch (error: any) {
       console.error("Error creating project:", error);
+      toast.error("Error" + error.message);
     } finally {
       setIsLoading(false);
     }

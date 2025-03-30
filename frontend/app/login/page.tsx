@@ -12,10 +12,10 @@ import { Label } from "@/components/ui/label";
 import ThemeToggle from "@/components/theme-toggle";
 import { signIn, useSession } from "next-auth/react";
 import { useRouter } from "next/navigation";
+import { toast } from "sonner";
 
 export default function LoginPage() {
   const [isLoading, setIsLoading] = useState(false);
-
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [emailFocused, setEmailFocused] = useState(false);
@@ -35,11 +35,14 @@ export default function LoginPage() {
       redirect: false,
       email,
       password,
+      callbackUrl: "/dashboard",
     });
+
     if (res?.ok) {
       router.push("/dashboard");
+      toast.success("Login Successfull");
     } else {
-      console.error("Login failed");
+      toast.error("Login failed");
     }
     setIsLoading(false);
   };

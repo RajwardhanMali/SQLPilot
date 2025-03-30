@@ -30,7 +30,7 @@ export default function Sidebar({
   const pathname = usePathname();
   useEffect(() => {
     const fetchProjects = async () => {
-      const res = await getProjectsByUser(3);
+      const res = await getProjectsByUser(4);
       setProjects(JSON.parse(res));
     };
     fetchProjects();
@@ -55,7 +55,8 @@ export default function Sidebar({
 
       {/* Sidebar */}
       <AnimatePresence>
-        {(isSidebarOpen || window.innerWidth >= 1024) && (
+        {(isSidebarOpen ||
+          (typeof window !== "undefined" && window.innerWidth >= 1024)) && (
           <motion.div
             className="fixed lg:relative z-40 h-full bg-dark-200/80 backdrop-blur-md border-r border-white/10 w-64"
             initial={{ x: -280 }}
@@ -65,7 +66,10 @@ export default function Sidebar({
           >
             <div className="flex flex-col h-full">
               <div className="p-5 border-b border-white/10">
-                <div className="flex items-center gap-2">
+                <div
+                  className="flex items-center gap-2"
+                  onClick={() => router.push("/")}
+                >
                   <div className="h-8 w-8 rounded-lg neon-gradient-bg flex items-center justify-center text-white">
                     <Database className="h-5 w-5" />
                   </div>
@@ -169,26 +173,6 @@ export default function Sidebar({
                         {project.title}
                       </motion.button>
                     ))}
-                  </div>
-                </div>
-
-                <div className="mt-8">
-                  <div className="rounded-lg bg-dark-100/50 p-4 border border-white/5">
-                    <div className="flex items-center gap-2 mb-2">
-                      <div className="h-8 w-8 rounded-full bg-neon-purple/20 flex items-center justify-center">
-                        <Sparkles className="h-4 w-4 text-neon-purple" />
-                      </div>
-                      <h3 className="font-medium">Pro Features</h3>{" "}
-                    </div>
-                    <p className="text-xs text-muted-foreground mb-3">
-                      Unlock advanced features with our Pro plan
-                    </p>
-                    <Button
-                      size="sm"
-                      className="w-full neon-gradient-bg text-xs"
-                    >
-                      Upgrade Now
-                    </Button>
                   </div>
                 </div>
               </div>

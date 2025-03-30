@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import mermaid from "mermaid";
+import { RefreshCcwDot } from "lucide-react";
 
 const MermaidRenderer = ({ chart }: { chart: string }) => {
   const mermaidRef = useRef<HTMLDivElement>(null);
@@ -40,9 +41,9 @@ const MermaidRenderer = ({ chart }: { chart: string }) => {
       <div ref={mermaidRef} className="mermaid" />
       <button
         onClick={handleRender}
-        className="mt-2 px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600 absolute top-5 right-5"
+        className="mt-2 p-4 bg-gradient-to-r from-purple-600 to-pink-600 text-white absolute top-5 right-5 rounded-full"
       >
-        Re-render Chart
+        <RefreshCcwDot className="hover:animate-spin transition" />
       </button>
     </div>
   );

@@ -3,6 +3,10 @@ import "./globals.css";
 import { Outfit, JetBrains_Mono } from "next/font/google";
 import localFont from "next/font/local";
 import { ThemeProvider } from "@/components/theme-provider";
+import AuthProvdider from "@/components/auth-provider";
+import { Toaster } from "sonner";
+
+
 
 const outfit = Outfit({
   subsets: ["latin"],
@@ -73,7 +77,3 @@ export default function RootLayout({
   );
 }
 
-import "./globals.css";
-import AuthProvdider from "@/components/auth-provider";
-import { ToastProvider } from "@/components/ui/toast";
-import { Toaster } from "@/components/ui/toaster";

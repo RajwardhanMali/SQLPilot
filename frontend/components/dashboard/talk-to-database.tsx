@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { Send, Bot, User, Upload, File, FileText } from "lucide-react";
+import { Send, Bot, User, Upload, FileText } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -12,16 +12,10 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogDescription,
-} from "@/components/ui/dialog";
-import { toast } from "@/components/ui/use-toast";
+
 import { createFile, getFilesByProjectId } from "@/actions/file";
 import { useParams } from "next/navigation";
+import { toast } from "sonner";
 
 interface Message {
   role: string;
@@ -65,18 +59,12 @@ export default function TalkToDatabase() {
   const handleFileUpload = async (file: File) => {
     if (!file) return;
 
-    const allowedTypes = [
-      "text/csv",
-      "application/json",
-      "application/x-parquet",
-    ];
-
-    if (!allowedTypes.includes(file.type)) {
-      toast({
-        title: "Invalid file type",
-        description: "Please upload only CSV, JSON, or Parquet files",
-        variant: "destructive",
-      });
+    const allowedExtensions = ["csv", "json", "parquet", "orc"];
+    const fileExtension = file.name.split(".").pop()?.toLowerCase();
+    if (!fileExtension || !allowedExtensions.includes(fileExtension)) {
+      toast.error(
+        "Invalid file type. Please upload only CSV, JSON, or Parquet files."
+      );
       return;
     }
 
@@ -94,18 +82,11 @@ export default function TalkToDatabase() {
       // Create file record in database after successful upload
       await createFile(data.file_name, id as string);
 
-      toast({
-        title: "Success",
-        description: data.message,
-      });
+      toast.success(data.message);
 
       loadFiles();
     } catch (error) {
-      toast({
-        title: "Error",
-        description: "Failed to upload file",
-        variant: "destructive",
-      });
+      toast.error("Failed to upload file");
     }
   };
 
@@ -131,7 +112,6 @@ export default function TalkToDatabase() {
       console.log(response);
 
       const data = await response.json();
-      console.log(data);
       // Add the query and response messages
       setMessages((prev) => [
         ...prev,

@@ -11,6 +11,7 @@ import {
   Play,
   Star,
   StarOff,
+  Eye,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -22,6 +23,7 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { useParams } from "next/navigation";
+import { toast } from "sonner";
 
 interface QueryRecord extends SerializedQuery {
   favorite?: boolean;
@@ -96,7 +98,7 @@ export default function QueryHistory() {
           </div>
         </CardHeader>
         <CardContent>
-          <div className="border rounded-md overflow-hidden">
+          <div className="border rounded-md overflow-x-auto">
             <table className="w-full">
               <thead>
                 <tr className="bg-muted">
@@ -134,7 +136,7 @@ export default function QueryHistory() {
                         <span
                           className={`inline-flex items-center rounded-full px-2 py-1 text-xs font-medium ${
                             !query.error
-                              ? "bg-lime/20 text-lime-dark border border-lime/30"
+                              ? "bg-green-600 border-green-200 border"
                               : "bg-destructive/20 text-destructive border border-destructive/30"
                           }`}
                         >
@@ -150,11 +152,18 @@ export default function QueryHistory() {
                               <StarOff className="h-4 w-4" />
                             )}
                           </Button>
-                          <Button variant="ghost" size="icon">
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            onClick={() => {
+                              navigator.clipboard.writeText(query.queryText);
+                              toast.success("Query Copied To Clipboard");
+                            }}
+                          >
                             <Copy className="h-4 w-4" />
                           </Button>
                           <Button variant="ghost" size="icon">
-                            <Play className="h-4 w-4" />
+                            <Eye className="h-4 w-4" />
                           </Button>
                         </div>
                       </td>

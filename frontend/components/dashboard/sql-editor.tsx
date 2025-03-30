@@ -8,6 +8,7 @@ import { Loader2 } from "lucide-react";
 import useDashboardStore from "@/store/dashboard";
 import { saveQuery } from "@/actions/query";
 import { useParams } from "next/navigation";
+import { toast } from "sonner";
 
 export default function SQLEditor() {
   const [sqlQuery, setSqlQuery] = useState("");
@@ -46,8 +47,9 @@ export default function SQLEditor() {
           queryText: sqlQuery,
           dialect: "trino",
           outputColumns: data.output.columns,
-          outputRows: data.output.rows
+          outputRows: data.output.rows,
         });
+        toast.success(data.success);
       } else {
         setError(data.error.message);
         await saveQuery({
@@ -56,8 +58,9 @@ export default function SQLEditor() {
           queryText: sqlQuery,
           dialect: "trino",
           errorMessage: data.error.message,
-          errorName: data.error.name
+          errorName: data.error.name,
         });
+        toast.error(data.error.message);
       }
     } catch (error) {
       console.error("Error executing SQL:", error);

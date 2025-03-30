@@ -9,7 +9,7 @@ import TalkToDatabase from "@/components/dashboard/talk-to-database";
 import QueryHistory from "@/components/dashboard/query-history";
 import SQLEditor from "@/components/dashboard/sql-editor";
 
-import { useParams, useRouter } from "next/navigation";
+import {  useRouter } from "next/navigation";
 import Navbar from "@/components/dashboard/navbar";
 import Sidebar from "@/components/dashboard/sidebar";
 import { useSession } from "next-auth/react";

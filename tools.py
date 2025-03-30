@@ -77,8 +77,6 @@ check_datatype_for_trino = Tool(
     description="Takes datatype and dialect as input and checks if the data type is supported by the dialect. Currently only trino is supported."
 )
 
-
-
 if __name__ == "__main__":
     print("schema info",get_schemas("memory"))
     print("table info",get_tables("memory", "default"))

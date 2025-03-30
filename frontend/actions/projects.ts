@@ -4,6 +4,7 @@ import dbConnect from "@/lib/dbConnect";
 import { getServerUser } from "@/lib/session";
 import Project from "@/models/Project";
 import User from "@/models/User";
+import { revalidatePath } from "next/cache";
 
 export const getProjectsByUser = async (limit?: number) => {
   await dbConnect();
@@ -43,7 +44,8 @@ export const createProject = async (projectData: {
     createdBy: existingUser._id,
   });
   await newProject.save();
-  return newProject.toObject();
+  revalidatePath("/dashboard");
+  return newProject._id.toString();
 };
 
 export const getProjectById = async () => {
