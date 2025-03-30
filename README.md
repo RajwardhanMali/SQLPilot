@@ -16,8 +16,6 @@ SQL-Pilot is an AI-powered SQL assistant designed to simplify database managemen
 ### Bonus Features  
 - **Storage-Optimized Schema Suggestions**: Recommends schemas optimized for storage and performance.  
 
-## Technical Requirements  
-
 ### Core Functionality  
 - **Dynamic SQL Generation**: Supports Trino and Spark SQL dialects.  
 - **Validation Environment**: Uses Trino docker execution environment for query validation.  
