@@ -1,5 +1,6 @@
 import re
 from typing import Dict, List, Tuple
+import json
 
 class SchemaDesignEngine:
     def __init__(self, nlu_module):
@@ -12,6 +13,9 @@ class SchemaDesignEngine:
     
     def generate_ddl(self, schema_design, dialect="Trino"):
         """Generate DDL statements for the schema"""
+        if isinstance(schema_design, str):
+            schema_design = json.loads(schema_design)  # Deserialize if schema_design is a string
+        
         ddl_statements = []
         
         # Create dimension tables first
@@ -47,7 +51,8 @@ class SchemaDesignEngine:
         column_defs = []
         for col in columns:
             col_name = col["name"]
-            col_type = self._map_data_type(col["data_type"], dialect)
+            # Change from data_type to dataType to match the schema
+            col_type = self._map_data_type(col["dataType"].lower(), dialect)
             nullable = col.get("nullable", True)
             
             if nullable:
@@ -85,57 +90,74 @@ class SchemaDesignEngine:
             ddl += "\nUSING PARQUET"  # Default to Parquet format for Spark SQL
         
         return ddl
-    
+
+    def _parse_data_type(self, data_type):
+        """Parse data type and extract length/precision if specified"""
+        match = re.match(r'(\w+)(?:\((\d+(?:,\d+)?)\))?', data_type.lower())
+        if not match:
+            raise ValueError(f"Invalid data type format: {data_type}")
+        base_type, length_spec = match.groups()
+        return base_type, length_spec
+
     def _map_data_type(self, data_type, dialect):
-        """Map generic data types to dialect-specific types"""
-        data_type = data_type.lower()
-        
-        if dialect.lower() == "trino":
-            type_mapping = {
-                "int": "INTEGER",
-                "integer": "INTEGER",
-                "bigint": "BIGINT",
-                "string": "VARCHAR",
-                "varchar": "VARCHAR",
-                "text": "VARCHAR",
-                "float": "REAL",
-                "double": "DOUBLE",
-                "decimal": "DECIMAL(18, 2)",
-                "boolean": "BOOLEAN",
-                "date": "DATE",
-                "timestamp": "TIMESTAMP",
-                "datetime": "TIMESTAMP"
-            }
-        else:  # Spark SQL
-            type_mapping = {
-                "int": "INT",
-                "integer": "INT",
-                "bigint": "BIGINT",
-                "string": "STRING",
-                "varchar": "STRING",
-                "text": "STRING",
-                "float": "FLOAT",
-                "double": "DOUBLE",
-                "decimal": "DECIMAL(18, 2)",
-                "boolean": "BOOLEAN",
-                "date": "DATE",
-                "timestamp": "TIMESTAMP",
-                "datetime": "TIMESTAMP"
-            }
-        
-        # Handle dimensions like VARCHAR(255)
-        if "varchar" in data_type and "(" in data_type:
-            size = re.search(r'\((\d+)\)', data_type)
-            if size and dialect.lower() == "trino":
-                return f"VARCHAR({size.group(1)})"
-            else:  # Spark SQL doesn't need size for STRING
-                return "STRING"
-        
-        # Handle decimal precision and scale
-        if "decimal" in data_type and "(" in data_type:
-            size = re.search(r'\((\d+),\s*(\d+)\)', data_type)
-            if size:
-                precision, scale = size.group(1), size.group(2)
-                return f"DECIMAL({precision}, {scale})"
-        
-        return type_mapping.get(data_type, "VARCHAR" if dialect.lower() == "trino" else "STRING")
+        """
+        Maps a generic data type to a SQL dialect-specific data type.
+        Now handles length specifications like VARCHAR(255)
+        """
+        try:
+            base_type, length_spec = self._parse_data_type(data_type)
+            
+            if dialect.lower() == "trino":
+                # Mapping for Trino
+                type_mapping = {
+                    "int": "INTEGER",
+                    "integer": "INTEGER",
+                    "text": "VARCHAR",
+                    "string": "VARCHAR",
+                    "varchar": "VARCHAR",
+                    "boolean": "BOOLEAN",
+                    "bool": "BOOLEAN",
+                    "float": "DOUBLE",
+                    "double": "DOUBLE",
+                    "decimal": "DECIMAL",
+                    "date": "DATE",
+                    "timestamp": "TIMESTAMP",
+                }
+            elif dialect.lower() == "spark_sql":
+                # Mapping for Spark SQL
+                type_mapping = {
+                    "int": "INT",
+                    "integer": "INT",
+                    "text": "STRING",
+                    "string": "STRING",
+                    "varchar": "STRING",
+                    "boolean": "BOOLEAN",
+                    "bool": "BOOLEAN",
+                    "float": "FLOAT",
+                    "double": "DOUBLE",
+                    "decimal": "DECIMAL",
+                    "date": "DATE",
+                    "timestamp": "TIMESTAMP",
+                }
+            else:
+                raise ValueError(f"Unsupported SQL dialect: {dialect}")
+
+            if base_type not in type_mapping:
+                raise ValueError(f"Unsupported data type '{base_type}' for dialect '{dialect}'")
+
+            mapped_type = type_mapping[base_type]
+            
+            # Append length specification for types that support it
+            if length_spec:
+                if mapped_type in ["VARCHAR", "DECIMAL"] and dialect.lower() == "trino":
+                    return f"{mapped_type}({length_spec})"
+                elif mapped_type in ["STRING", "DECIMAL"] and dialect.lower() == "spark_sql":
+                    if mapped_type == "DECIMAL":
+                        return f"{mapped_type}({length_spec})"
+                    # Spark SQL doesn't need length for STRING type
+                    return mapped_type
+            
+            return mapped_type
+
+        except Exception as e:
+            raise ValueError(f"Error mapping data type '{data_type}' for dialect '{dialect}': {str(e)}")

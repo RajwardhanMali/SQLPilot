@@ -1,99 +1,237 @@
 import os
-from langchain_google_genai import ChatGoogleGenerativeAI
+from typing import List, Optional
+import json
+from dotenv import load_dotenv
+from langchain.agents import create_tool_calling_agent, AgentExecutor
+from langchain_core.output_parsers import PydanticOutputParser
 from langchain_core.prompts import ChatPromptTemplate
-from langchain_core.output_parsers import JsonOutputParser
+from langchain_google_genai import ChatGoogleGenerativeAI
+from pydantic import BaseModel
+from tools import check_datatype_for_trino
+
+class Column(BaseModel):
+    name: str
+    dataType: str
+    description: str
+    primaryKey: Optional[bool] = False
+    foreignKey: Optional[bool] = False
+    references: Optional[str] = None
+
+class Table(BaseModel):
+    name: str
+    type: str  # "fact" or "dimension"
+    columns: List[Column]
+
+class SchemaDesignResponse(BaseModel):
+    tables: List[Table]
+    mermaid_code : str
+
+class SqlTranslationResponse(BaseModel):
+    sql: str
+    explanation: str
+
 
 class NLUModule:
-    def __init__(self, model_name="models/gemini-1.5-pro"):
-        # Initialize with Google Gemini model using direct API key
+    def __init__(self, model_name="models/gemini-2.0-flash"):
         api_key = os.environ.get("GOOGLE_API_KEY")
+        
         if not api_key:
             raise ValueError("GOOGLE_API_KEY environment variable not set")
-            
+        mermaid_code = """
+        erDiagram
+        classDef usersStyle fill:#000,stroke:#1f77b4,stroke-width:2px;
+        classDef postsStyle fill:#000,stroke:#ff7f0e,stroke-width:2px;
+        classDef commentsStyle fill:#000,stroke:#2ca02c,stroke-width:2px;
+        classDef tagsStyle fill:#000,stroke:#d62728,stroke-width:2px;
+        classDef interactionsStyle fill:#000,stroke:#9467bd,stroke-width:2px;
+        classDef bridgeStyle fill:#000,stroke:#8c564b,stroke-width:2px;
+
+        dim_users {
+            INT user_id PK
+            VARCHAR(50) username
+            DATE registration_date
+            VARCHAR(100) email
+        }
+        class dim_users usersStyle
+
+        dim_posts {
+            INT post_id PK
+            INT user_id FK
+            VARCHAR(255) post_title
+            DATE post_date
+            TEXT post_content
+        }
+        class dim_posts postsStyle
+
+        dim_comments {
+            INT comment_id PK
+            INT user_id FK
+            INT post_id FK
+            TEXT comment_text
+            TIMESTAMP comment_date
+        }
+        class dim_comments commentsStyle
+
+        dim_tags {
+            INT tag_id PK
+            VARCHAR(50) tag_name
+        }
+        class dim_tags tagsStyle
+
+        fact_interactions {
+            INT interaction_id PK
+            INT user_id FK
+            INT post_id FK
+            INT comment_id FK
+            TIMESTAMP interaction_timestamp
+            VARCHAR(50) interaction_type
+        }
+        class fact_interactions interactionsStyle
+
+        bridge_post_tags {
+            INT post_id FK
+            INT tag_id FK
+        }
+        class bridge_post_tags bridgeStyle
+
+        dim_users ||--o{ dim_posts : "has"
+        dim_users ||--o{ dim_comments : "writes"
+        dim_posts ||--o{ dim_comments : "has"
+        dim_posts ||--o{ fact_interactions : "involves"
+        dim_comments ||--o{ fact_interactions : "involves"
+        dim_users ||--o{ fact_interactions : "performs"
+        dim_posts ||--o{ bridge_post_tags : "tagged with"
+        dim_tags ||--o{ bridge_post_tags : "applies to"
+        """
         self.llm = ChatGoogleGenerativeAI(
             model=model_name,
             temperature=0,
-            google_api_key=api_key  # Pass API key directly
+            google_api_key=api_key
         )
-        
-        # Set up prompt templates for different tasks
-        self.schema_design_prompt = ChatPromptTemplate.from_template(
-            """You are an expert database architect. Based on the following business description, 
-            design an optimal OLAP schema with fact and dimension tables.
+
+        # Schema Design Agent Setup
+        self.schema_parser = PydanticOutputParser(pydantic_object=SchemaDesignResponse)
+        self.schema_prompt = ChatPromptTemplate.from_messages([
+            ("system", """You are an expert database architect specialized in **Trino (Presto) SQL**. 
+             Your goal is to **design a highly optimized, accurate OLAP schema** using Trino best practices.
+
+            ## **Schema Design Guidelines**
+            1. **Strictly follow Trino SQL syntax**:
+            - **Use `INTEGER` instead of `BIGINT`**.
+            - **Use `TIMESTAMP` instead of `DATETIME`**.
+            - **Use `FLOAT` instead of `DECIMAL(10,2)`** for compatibility.
+            2. **Ensure all column types are validated** using the `check_datatype_for_trino` tool.
+            3. **Use explicit Primary Keys (PK) and Foreign Keys (FK)** to define relationships.
             
-            Business Description: {business_description}
-            
-            Respond with a JSON object that contains:
-            1. A list of tables
-            2. For each table, specify if it's a fact or dimension table
-            3. For each table, provide column names, data types, and descriptions
-            4. Primary keys and foreign key relationships
-            """
+            ## **Mermaid Diagram Styling Rules**
+            - **Fact tables:** Blue (`fill:#3498db, stroke:#000`).
+            - **Dimension tables:** Orange (`fill:#f39c12, stroke:#000`).
+            - **Ensure proper relationships with clear PK-FK references**.
+            - **Use a light background with black stroke (`fill:#000, text:#fff`)**.
+            - **Since `DECIMAL(10,2)` does not render correctly in Mermaid, replace it with `FLOAT`**.
+
+            ## **Example Mermaid Code**
+            ```
+            {mermaid_code}
+            ```
+
+            **Ensure that the generated schema is free from syntax errors.**  
+            Use the provided tools when necessary and strictly adhere to the format instructions.  
+
+            {format_instructions}
+            """),
+            ("human", "{business_description}"),
+            ("placeholder", "{agent_scratchpad}")
+        ]).partial(format_instructions=self.schema_parser.get_format_instructions(), mermaid_code=mermaid_code)
+
+
+
+        # SQL Translation Agent Setup
+        self.sql_parser = PydanticOutputParser(pydantic_object=SqlTranslationResponse)
+        self.sql_prompt = ChatPromptTemplate.from_messages([
+            ("system", """You are an expert SQL assistant. Convert natural language queries into optimized SQL.
+            Use the provided tools when necessary and format the output as specified.
+            Dialect: {dialect}
+            Schema: {schema}
+            {format_instructions}"""),
+            ("human", "{natural_query}"),
+            ("placeholder", "{agent_scratchpad}")
+        ]).partial(format_instructions=self.sql_parser.get_format_instructions())
+
+    def design_schema(self, business_description, tools =[check_datatype_for_trino]):
+        """Generate database schema design using an agent with tools"""
+        agent = create_tool_calling_agent(
+            llm=self.llm,
+            prompt=self.schema_prompt,
+            tools=tools
         )
-        
-        self.sql_translation_prompt = ChatPromptTemplate.from_template(
-            """
-            You are an expert SQL assistant. Convert the following natural language query into an optimized SQL query.
-            
-            - Ensure the syntax follows the {dialect} dialect.
-            - Use proper table and column names based on the provided schema.
-            - Ensure correct joins, aggregations, and filters.
-            - If the query requires a date range, handle it dynamically using {dialect}-compatible functions.
-            - Give the answer in JSON format given below :
-                Output format:
-                {{
-                "sql": "<Generated SQL Query>",
-                "explanation": "<Explanation of the SQL Query>"
-                }}
+        executor = AgentExecutor(agent=agent, tools=tools, verbose=True)
 
-
-            Schema:
-            {schema}
-
-            Natural Language Query:
-            "{natural_query}"
-
-            SQL Query:
-            """
-        )
-        
-        # Output parser
-        self.json_parser = JsonOutputParser()
-    
-    def design_schema(self, business_description):
-        """Generate database schema design from business description"""
-        chain = self.schema_design_prompt | self.llm | self.json_parser
-        return chain.invoke({"business_description": business_description})
-    
-    def translate_to_sql(self, natural_query, schema, dialect="Trino"):
-        """Translate natural language to SQL in specified dialect"""
-        chain = self.sql_translation_prompt | self.llm | self.json_parser
-        ans = chain.invoke({
-            "natural_query": natural_query,
-            "schema": schema,
-            "dialect": dialect
+        response = executor.invoke({
+            "business_description": business_description
         })
-        print(ans['sql'])
-        return ans['sql'].strip()
-    
-    def understand_intent(self, user_input):
-        """Identify the user's intent from their input"""
-        intent_prompt = ChatPromptTemplate.from_template(
-            """Determine the user's intent from the following input:
-            
-            User Input: {user_input}
-            
+        parsed_response = self.schema_parser.parse(response["output"])
+
+        return json.loads(parsed_response.model_dump_json())
+
+
+    def translate_to_sql(self, natural_query, schema, dialect="Trino", tools=[]):
+            """Translate natural language to SQL using an agent with tools"""
+            # print("schema:", schema)
+            # schema = schema.join("\n")
+            agent = create_tool_calling_agent(
+                llm=self.llm,
+                prompt=self.sql_prompt,
+                tools=tools
+            )
+            executor = AgentExecutor(agent=agent, tools=tools, verbose=True)
+
+            response = executor.invoke({
+                "natural_query": natural_query,
+                "schema": schema,
+                "dialect": dialect
+            })
+            return json.loads(self.sql_parser.parse(response["output"]).model_dump_json())
+
+    def understand_intent(self, user_input, tools=[]):
+        """Identify user's intent using an agent with tools"""
+        intent_prompt = ChatPromptTemplate.from_messages([
+            ("system", """Determine the user's intent from their input. Use available tools if needed.
             Possible intents:
             - SCHEMA_DESIGN: User wants to design a database schema
             - DDL_GENERATION: User wants to generate DDL statements
             - DML_GENERATION: User wants to generate DML statements
             - SQL_COMPLETION: User wants help completing a SQL query
             - SQL_TRANSLATION: User wants to translate natural language to SQL
-            - SQL_EXECUTION: User wants to execute a SQL query
-            
-            Respond with just the intent name.
-            """
+            - SQL_EXECUTION: User wants to execute a SQL query"""),
+            ("human", "{user_input}"),
+            ("placeholder", "{agent_scratchpad}")
+        ])
+
+        agent = create_tool_calling_agent(
+            llm=self.llm,
+            prompt=intent_prompt,
+            tools=tools
         )
-        
-        chain = intent_prompt | self.llm 
-        return chain.invoke({"user_input": user_input}).content.strip()
+        executor = AgentExecutor(agent=agent, tools=tools, verbose=True)
+
+        response = executor.invoke({"user_input": user_input})
+        return response["output"].strip()
+
+
+if __name__ == "__main__":
+    nlu = NLUModule()
+    schema = nlu.design_schema("Design a database schema for a social media platform that includes users, posts, comments, and tags.")
+    print(schema)
+    print(schema.get("mermaid_code"))
+    # schema = """
+    #     'CREATE TABLE IF NOT EXISTS dim_users (\n  user_id INTEGER,\n  username VARCHAR(50),\n  email VARCHAR(100),\n  registration_date DATE,\n  last_login TIMESTAMP,\n  status VARCHAR(20)\n)',
+    #     'CREATE TABLE IF NOT EXISTS dim_date (\n  date_id INTEGER,\n  date DATE,\n  day_of_week VARCHAR(10),\n  month VARCHAR(10),\n  year INTEGER\n)',
+    #     'CREATE TABLE IF NOT EXISTS fact_user_activity (\n  activity_id INTEGER,\n  user_id INTEGER,\n  date_id INTEGER,\n  login_time TIMESTAMP,\n  logout_time TIMESTAMP,\n  activity_type VARCHAR(50)\n)'
+    #     """
+    # translated_sql = nlu.translate_to_sql("show me total activities of users on wednesday", schema, "Trino", [])
+    # print("sql:",translated_sql.get("sql"))
+    # print("explaination:",translated_sql.get("explanation"))
+
+
+   

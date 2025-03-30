@@ -1,5 +1,5 @@
 import trino
-import pyspark
+import time
 from pyspark.sql import SparkSession
 from pyspark.sql.types import *
 import pandas as pd
@@ -9,7 +9,7 @@ class QueryExecutionInterface:
         self.trino_connection = None
         self.spark_session = None
     
-    def initialize_trino(self, host="localhost", port=8080, user="trino", catalog="default", schema="default"):
+    def initialize_trino(self, host="localhost", port=8080, user="trino", catalog="memory", schema="default"):
         """Initialize Trino connection"""
         self.trino_connection = trino.dbapi.connect(
             host=host,
@@ -18,7 +18,10 @@ class QueryExecutionInterface:
             catalog=catalog,
             schema=schema
         )
-        return self.trino_connection
+        try:
+         return {"success": True, "message": f"Connected to Trino at {host}:{port} using catalog '{catalog}' and schema '{schema}'"}
+        except Exception as e:
+         return {"success": False, "error": str(e)}
     
     def initialize_spark(self, app_name="SQL Assistant", configs=None):
         """Initialize Spark session with optional configurations
@@ -48,31 +51,71 @@ class QueryExecutionInterface:
         except Exception as e:
             raise RuntimeError(f"Failed to initialize Spark session: {str(e)}")
     
-    def execute_trino_query(self, query):
-        """Execute a query using Trino"""
+
+    def execute_trino_query(self, query, schema):
+        """Execute a query using Trino (memory catalog) and ensure schema exists."""
         if not self.trino_connection:
             raise ValueError("Trino connection not initialized")
-        
+
         cursor = self.trino_connection.cursor()
+        catalog = "memory"  # Always use the memory catalog
+
+        # Ensure schema exists
+        cursor.execute(f"SHOW SCHEMAS FROM {catalog}")
+        existing_schemas = {row[0] for row in cursor.fetchall()}
+        print(f"Existing schemas: {existing_schemas}")
+
+        if schema.lower() not in existing_schemas:
+            print(f"Schema '{schema}' does not exist. Creating it.")
+            cursor.execute(f"CREATE SCHEMA {catalog}.{schema.lower()}")
+
+        # Start execution timer
+        start_time = time.time()
+        cursor.execute(f"USE {catalog}.{schema}")
+        # Execute the query
         cursor.execute(query)
-        
-        # Get column names
+
+        # Get column names and fetch results once
+        rows, columns, results = [], [], []
         if cursor.description:
             columns = [desc[0] for desc in cursor.description]
-            
-            # Fetch results
             rows = cursor.fetchall()
-            
-            # Create a list of dictionaries for the results
-            results = []
-            for row in rows:
-                result = dict(zip(columns, row))
-                results.append(result)
-            
-            return {"columns": columns, "rows": rows, "results": results}
-        else:
-            # For DDL/DML statements that don't return results
-            return {"message": "Query executed successfully"}
+            results = [dict(zip(columns, row)) for row in rows]
+
+        execution_time = round(time.time() - start_time, 4)
+
+        # Fetch latest query ID
+        cursor.execute("SELECT query_id FROM system.runtime.queries ORDER BY created DESC LIMIT 1")
+        query_id = cursor.fetchone()[0] if cursor.rowcount else None
+
+        cpu_time, peak_memory, elapsed_time = None, None, None
+        if query_id:
+            try:
+                # Fetch CPU time and memory usage from system.runtime.tasks
+                cursor.execute(f"""
+                    SELECT sum(cpu_time_millis) / 1000.0, 
+                        max(memory_bytes),
+                        max(elapsed_time_millis) / 1000.0
+                    FROM system.runtime.tasks 
+                    WHERE query_id = '{query_id}'
+                """)
+                metrics = cursor.fetchone()
+                if metrics:
+                    cpu_time, peak_memory, elapsed_time = metrics
+            except Exception as e:
+                print(f"Error fetching query metrics: {e}")
+
+        return {
+            "columns": columns,
+            "rows": rows,
+            "results": results,
+            "execution_time_seconds": execution_time,
+            "cpu_time_seconds": cpu_time,
+            "peak_memory_bytes": peak_memory,
+            "trino_elapsed_time_seconds": elapsed_time
+        }
+
+
     
     def execute_spark_query(self, query):
         """Execute a query using Spark SQL with improved error handling and data conversion"""
@@ -113,7 +156,7 @@ class QueryExecutionInterface:
     def execute_query(self, query, engine="trino"):
         """Execute a query with the specified engine"""
         if engine.lower() == "trino":
-            return self.execute_trino_query(query)
+            return self.execute_trino_query(query, schema="default")
         elif engine.lower() in ["spark", "spark_sql"]:
             return self.execute_spark_query(query)
         else:
